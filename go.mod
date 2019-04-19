@@ -23,7 +23,7 @@ require (
 	github.com/kr/pretty v0.1.0 // indirect
 	github.com/lib/pq v1.0.0 // indirect
 	github.com/magiconair/properties v0.0.0-20190110142458-7757cc9fdb85 // indirect
-	github.com/mitchellh/mapstructure v1.1.2 // indirect
+	github.com/mitchellh/mapstructure v1.1.2
 	github.com/nats-io/gnatsd v1.4.1 // indirect
 	github.com/nats-io/go-nats v1.3.0
 	github.com/nats-io/go-nats-streaming v0.3.4
