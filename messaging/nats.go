@@ -7,42 +7,34 @@ import (
 
 	"github.com/nats-io/go-nats"
 	stan "github.com/nats-io/go-nats-streaming"
-	"github.com/netlify/netlify-commons/nconf"
 	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 )
 
-var silent *logrus.Entry
-
-func init() {
-	l := logrus.New()
-	l.Out = ioutil.Discard
-	silent = logrus.NewEntry(l)
+func silentIfNil(log logrus.FieldLogger) *logrus.Entry {
+	if log == nil {
+		l := logrus.New()
+		l.Out = ioutil.Discard
+		log = logrus.NewEntry(l)
+	}
+	return log.WithField("component", "nats")
 }
 
-func ConfigureNatsConnection(config *nconf.NatsConfig, log logrus.FieldLogger) (*nats.Conn, error) {
-	if log == nil {
-		log = silent
-	}
-	if config == nil {
-		log.Debug("Skipping nats connection because there is no config")
-		return nil, nil
-	}
+func (config *NatsConfig) ConnectToNats(log logrus.FieldLogger, opts ...nats.Option) (*nats.Conn, error) {
+	log = silentIfNil(log)
 
 	if err := config.LoadServerNames(); err != nil {
 		return nil, errors.Wrap(err, "Failed to discover new servers")
 	}
 
 	log.WithFields(config.Fields()).Info("Going to connect to nats servers")
-	nc, err := ConnectToNats(config, ErrorHandler(log), nats.MaxReconnects(-1))
-	if err != nil {
-		return nil, err
+	if len(opts) == 0 {
+		opts = []nats.Option{
+			ErrorHandler(log),
+			nats.MaxReconnects(-1),
+		}
 	}
 
-	return nc, nil
-}
-
-func ConnectToNats(config *nconf.NatsConfig, opts ...nats.Option) (*nats.Conn, error) {
 	if config.TLS != nil {
 		tlsConfig, err := config.TLS.TLSConfig()
 		if err != nil {
@@ -50,39 +42,36 @@ func ConnectToNats(config *nconf.NatsConfig, opts ...nats.Option) (*nats.Conn, e
 		}
 		if tlsConfig != nil {
 			opts = append(opts, nats.Secure(tlsConfig))
+			log.Info("Configured TLS connection")
 		}
 	}
 
 	return nats.Connect(config.ServerString(), opts...)
 }
 
-func ConfigureNatsStreaming(config *nconf.NatsConfig, log logrus.FieldLogger) (stan.Conn, error) {
-	// connect to the underlying instance
-	nc, err := ConfigureNatsConnection(config, log)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to connect to underlying NATS servers")
-	}
-
-	conn, err := ConnectToNatsStreaming(nc, config, log)
-	if err != nil {
-		return nil, errors.Wrap(err, "Failed to connect to NATS streaming")
-	}
-
-	return conn, nil
-}
-
-func ConnectToNatsStreaming(nc *nats.Conn, config *nconf.NatsConfig, log logrus.FieldLogger) (stan.Conn, error) {
+func (config *NatsConfig) ConnectToNatsStreaming(log logrus.FieldLogger, opts ...nats.Option) (*nats.Conn, stan.Conn, error) {
+	log = silentIfNil(log)
 	if config.ClusterID == "" {
-		return nil, errors.New("Must provide a cluster ID to connect to streaming nats")
+		return nil, nil, errors.New("Must provide a cluster ID to connect to streaming nats")
 	}
+
 	if config.ClientID == "" {
 		config.ClientID = fmt.Sprintf("generated-%d", time.Now().Nanosecond())
-		log.WithField("client_id", config.ClientID).Debug("No client ID specified, generating a random one")
+		log.WithField("client_id", config.ClientID).Info("No client ID specified, generating a random one")
 	}
 
-	// connect to the actual instance
-	log.WithFields(config.Fields()).Debugf("Connecting to nats streaming cluster %s", config.ClusterID)
-	return stan.Connect(config.ClusterID, config.ClientID, stan.NatsConn(nc))
+	nc, err := config.ConnectToNats(log, opts...)
+	if err != nil {
+		return nil, nil, errors.Wrap(err, "Failed to connect to nats")
+	}
+
+	log.WithFields(config.Fields()).Infof("Connecting to nats streaming cluster %s", config.ClusterID)
+	sc, err := stan.Connect(config.ClusterID, config.ClientID, stan.NatsConn(nc))
+	if err != nil {
+		defer nc.Close()
+		return nil, nil, err
+	}
+	return nc, sc, err
 }
 
 func ErrorHandler(log logrus.FieldLogger) nats.Option {
