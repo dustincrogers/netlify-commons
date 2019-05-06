@@ -6,7 +6,7 @@ import (
 
 	bugsnag "github.com/bugsnag/bugsnag-go"
 	"github.com/pkg/errors"
-	"github.com/shopify/logrus-bugsnag"
+	logrus_bugsnag "github.com/shopify/logrus-bugsnag"
 	"github.com/sirupsen/logrus"
 )
 
@@ -17,7 +17,7 @@ type LoggingConfig struct {
 	QuoteEmptyFields bool   `mapstructure:"quote_empty_fields" json:"quote_empty_fields"`
 	TSFormat         string `mapstructure:"ts_format" json:"ts_format"`
 	BugSnag          *BugSnagConfig
-	Fields           map[string]interface{} `mapstructure:"fields" json:"fields"`
+	Fields           map[string]string `mapstructure:"fields" json:"fields"`
 }
 
 type BugSnagConfig struct {
