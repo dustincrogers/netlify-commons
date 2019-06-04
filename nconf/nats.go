@@ -44,8 +44,13 @@ func (c *NatsConfig) LoadServerNames() error {
 		return err
 	}
 
+	proto := "nats"
+	if c.TLS.Enabled {
+		proto = "tls"
+	}
+
 	for _, endpoint := range endpoints {
-		natsURLs = append(natsURLs, fmt.Sprintf("nats://%s:%d", endpoint.Target, endpoint.Port))
+		natsURLs = append(natsURLs, fmt.Sprintf("%s://%s:%d", proto, endpoint.Target, endpoint.Port))
 	}
 
 	c.Servers = natsURLs
