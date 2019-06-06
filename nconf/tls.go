@@ -31,10 +31,10 @@ func (cfg TLSConfig) TLSConfig() (*tls.Config, error) {
 	}
 
 	// Load CA
-	if len(cfg.CAFiles) > 0 {
-		tlsConf.RootCAs, err = LoadCAFromFiles(cfg.CAFiles)
-	} else if cfg.CA != "" {
+	if cfg.CA != "" {
 		tlsConf.RootCAs, err = LoadCAFromValue(cfg.CA)
+	} else if len(cfg.CAFiles) > 0 {
+		tlsConf.RootCAs, err = LoadCAFromFiles(cfg.CAFiles)
 	} else {
 		tlsConf.RootCAs, err = x509.SystemCertPool()
 	}
@@ -45,7 +45,6 @@ func (cfg TLSConfig) TLSConfig() (*tls.Config, error) {
 
 	// Load Certs if any
 	var cert tls.Certificate
-	err = nil
 	if cfg.Cert != "" && cfg.Key != "" {
 		cert, err = LoadCertFromValues(cfg.Cert, cfg.Key)
 		tlsConf.Certificates = append(tlsConf.Certificates, cert)
